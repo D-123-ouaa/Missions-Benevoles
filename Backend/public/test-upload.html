@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Upload Images Mission</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            display: none;
+        }
+        .error {
+            color: red;
+        }
+        .success {
+            color: green;
+        }
+    </style>
+</head>
+<body>
+    <h1>Créer une mission avec images</h1>
+    
+    <form id="missionForm" enctype="multipart/form-data" content="{{ csrf_token() }}">
+        <div class="form-group">
+            <label>Titre *</label>
+            <input type="text" name="title" required value="Mission Test Upload">
+        </div>
+        
+        <div class="form-group">
+            <label>Description *</label>
+            <input type="text" name="description" required value="Description de la mission test">
+        </div>
+        
+        <div class="form-group">
+            <label>Date *</label>
+            <input type="date" name="date" required value="2025-12-31">
+        </div>
+        
+        <div class="form-group">
+            <label>Lieu *</label>
+            <input type="text" name="location" required value="Marseille">
+        </div>
+        
+        <div class="form-group">
+            <label>Places disponibles *</label>
+            <input type="number" name="available_places" required value="20">
+        </div>
+        
+        <div class="form-group">
+            <label>Images (sélectionnez plusieurs)</label>
+            <input type="file" name="images[]" multiple accept="image/*">
+        </div>
+        
+        <div class="form-group">
+            <label>Token d'authentification *</label>
+            <input type="text" id="token" required placeholder="Entrez votre token Bearer" value="2|Mdyta|RpYPsb9AZHkBntxM6oRgiLntzuWjIVOGFK7625fe77">
+        </div>
+        
+        <button type="submit">Créer la mission</button>
+    </form>
+    
+    <div id="result" class="result"></div>
+
+    <script>
+        document.getElementById('missionForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const token = document.getElementById('token').value;
+            const formData = new FormData(e.target);
+            
+            // Supprimer le champ token du formData
+            formData.delete('token');
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<div class="loading">Envoi en cours...</div>';
+            
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/missions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    },
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <strong>✓ Mission créée avec succès !</strong><br><br>
+                            <strong>Titre:</strong> ${data.mission.title}<br>
+                            <strong>ID:</strong> ${data.mission.id}<br>
+                            <strong>Images:</strong> ${data.mission.images ? data.mission.images.length : 0} image(s)<br>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <strong>✗ Erreur:</strong><br>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <strong>✗ Erreur de connexion:</strong><br>
+                        ${error.message}
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>

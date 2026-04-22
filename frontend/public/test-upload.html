@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Upload Images Mission</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        input, button {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        button {
+            background-color: #653239;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #7a484f;
+        }
+        .success {
+            color: green;
+            margin: 10px 0;
+        }
+        .error {
+            color: red;
+            margin: 10px 0;
+        }
+        .image-list {
+            margin-top: 20px;
+        }
+        .image-list img {
+            width: 100px;
+            height: 100px;
+            object-fit: cover;
+            margin: 5px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test Upload Images Mission</h1>
+        
+        <!-- Connexion -->
+        <div id="loginSection">
+            <h3>1. Se connecter (Admin)</h3>
+            <input type="email" id="email" placeholder="Email" value="admin@example.com">
+            <input type="password" id="password" placeholder="Mot de passe" value="admin123">
+            <button onclick="login()">Se connecter</button>
+            <div id="loginResult"></div>
+        </div>
+
+        <!-- Upload images (visible après connexion) -->
+        <div id="uploadSection" style="display:none;">
+            <h3>2. Ajouter des images à une mission</h3>
+            <input type="number" id="missionId" placeholder="ID de la mission (ex: 1)" value="1">
+            <input type="file" id="images" multiple accept="image/*">
+            <button onclick="uploadImages()">Uploader les images</button>
+            <div id="uploadResult"></div>
+        </div>
+
+        <!-- Afficher les images -->
+        <div id="imagesList" class="image-list"></div>
+    </div>
+
+    <script>
+        let token = null;
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    token = data.token;
+                    document.getElementById('loginResult').innerHTML = '<div class="success">✅ Connecté ! Token récupéré</div>';
+                    document.getElementById('uploadSection').style.display = 'block';
+                    loadImages();
+                } else {
+                    document.getElementById('loginResult').innerHTML = '<div class="error">❌ ' + data.message + '</div>';
+                }
+            } catch (error) {
+                document.getElementById('loginResult').innerHTML = '<div class="error">❌ Erreur de connexion</div>';
+            }
+        }
+
+        async function uploadImages() {
+            const missionId = document.getElementById('missionId').value;
+            const files = document.getElementById('images').files;
+            
+            if (!files.length) {
+                document.getElementById('uploadResult').innerHTML = '<div class="error">❌ Sélectionnez au moins une image</div>';
+                return;
+            }
+
+            const formData = new FormData();
+            for (let i = 0; i < files.length; i++) {
+                formData.append('images[]', files[i]);
+            }
+
+            try {
+                const response = await fetch(`http://127.0.0.1:8000/api/missions/${missionId}/images`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('uploadResult').innerHTML = '<div class="success">✅ ' + data.message + '</div>';
+                    loadImages();
+                    document.getElementById('images').value = '';
+                } else {
+                    document.getElementById('uploadResult').innerHTML = '<div class="error">❌ ' + (data.message || 'Erreur') + '</div>';
+                }
+            } catch (error) {
+                document.getElementById('uploadResult').innerHTML = '<div class="error">❌ Erreur upload</div>';
+            }
+        }
+
+        async function loadImages() {
+            const missionId = document.getElementById('missionId').value;
+            
+            try {
+                const response = await fetch(`http://127.0.0.1:8000/api/missions/${missionId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const mission = await response.json();
+                
+                if (mission.images && mission.images.length > 0) {
+                    let html = '<h3>Images de la mission :</h3>';
+                    mission.images.forEach(img => {
+                        html += `<img src="${img.url}" alt="Mission image">`;
+                    });
+                    document.getElementById('imagesList').innerHTML = html;
+                } else {
+                    document.getElementById('imagesList').innerHTML = '<p>Aucune image pour cette mission</p>';
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+            }
+        }
+    </script>
+</body>
+</html>
