@@ -29,6 +29,18 @@ function AdminMissionEdit() {
         try {
             const response = await api.get(`/missions/${id}`);
             const mission = response.data.mission || response.data;
+
+            // Vérifier si la mission est passée
+            const missionDate = new Date(mission.date);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            if (missionDate < today) {
+                setError("Cette mission est déjà passée et ne peut plus être modifiée.");
+                setLoading(false);
+                return;
+            }
+
             setForm({
                 title: mission.title || '',
                 description: mission.description || '',

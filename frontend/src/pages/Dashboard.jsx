@@ -19,6 +19,10 @@ function Dashboard() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isRegistered, setIsRegistered] = useState(false);
     const [message, setMessage] = useState('');
+    const [filters, setFilters] = useState({
+        date: '',
+        location: ''
+    });
 
     const navigate = useNavigate();
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -28,7 +32,11 @@ function Dashboard() {
     const fetchMissions = useCallback(async (page = 1) => {
         setLoading(true);
         try {
-            const response = await api.get(`/missions?page=${page}`);
+            const params = { page };
+            if (filters.date) params.date = filters.date;
+            if (filters.location) params.location = filters.location;
+            console.log('Filtres envoyés:', params);
+            const response = await api.get('/missions', { params });
             const missionsData = response.data.data || response.data;
             setMissions(Array.isArray(missionsData) ? missionsData : []);
             setPagination({
@@ -41,7 +49,7 @@ function Dashboard() {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [filters]);
 
     useEffect(() => {
         fetchMissions(1);
@@ -210,6 +218,41 @@ function Dashboard() {
                             </Link>
                         </div>
                     )}
+                </div>
+
+                <div className="flex flex-wrap gap-4 justify-center mb-8">
+                    <input
+                        type="date"
+                        value={filters.date}
+                        onChange={(e) => setFilters({ ...filters, date: e.target.value })}
+                        className="px-4 py-2 rounded-lg border focus:outline-none focus:ring-2"
+                        style={{ borderColor: '#E2D4BA', backgroundColor: '#FFFFFF' }}
+                    />
+                    <input
+                        type="text"
+                        value={filters.location}
+                        onChange={(e) => setFilters({ ...filters, location: e.target.value })}
+                        placeholder="Filtrer par lieu..."
+                        className="px-4 py-2 rounded-lg border focus:outline-none focus:ring-2 w-64"
+                        style={{ borderColor: '#E2D4BA', backgroundColor: '#FFFFFF' }}
+                    />
+                    <button
+                        onClick={() => fetchMissions(1)}
+                        className="px-6 py-2 rounded-lg font-semibold transition hover:opacity-90"
+                        style={{ backgroundColor: '#653239', color: '#FFFFFF' }}
+                    >
+                        Filtrer
+                    </button>
+                    <button
+                        onClick={() => {
+                            setFilters({ date: '', location: '' });
+                            fetchMissions(1);
+                        }}
+                        className="px-6 py-2 rounded-lg font-semibold transition hover:opacity-90"
+                        style={{ backgroundColor: '#AF7A6D', color: '#FFFFFF' }}
+                    >
+                        Réinitialiser
+                    </button>
                 </div>
 
                 {missions.length === 0 ? (

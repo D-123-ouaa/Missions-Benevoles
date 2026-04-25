@@ -13,6 +13,7 @@ function AdminMissionShow() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [participants, setParticipants] = useState([]);
     const [showParticipants, setShowParticipants] = useState(false);
+    const [isPast, setIsPast] = useState(false); // 👈 AJOUTÉ
 
     useEffect(() => {
         fetchMission();
@@ -23,7 +24,15 @@ function AdminMissionShow() {
     const fetchMission = async () => {
         try {
             const response = await api.get(`/missions/${id}`);
-            setMission(response.data.mission || response.data);
+            const missionData = response.data.mission || response.data;
+            setMission(missionData);
+            
+            // 👈 Vérifier si la mission est passée
+            const missionDate = new Date(missionData.date);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            setIsPast(missionDate < today);
+            
         } catch (error) {
             console.error('Erreur:', error);
             navigate('/');
@@ -147,8 +156,20 @@ function AdminMissionShow() {
                         <div className="flex justify-between items-start flex-wrap gap-4">
                             <h1 className="text-3xl font-bold" style={{ color: '#653239' }}>{mission.title}</h1>
                             <div className="flex gap-3 mt-8">
+                                {/* 👈 BOUTON MODIFIER MODIFIÉ */}
                                 <Link to={`/admin/missions/edit/${mission.id}`}>
-                                    <button className="flex items-center gap-2 px-4 py-2 rounded-lg transition hover:opacity-80" style={{ backgroundColor: '#AF7A6D', color: '#FFFFFF' }}>
+                                    <button 
+                                        disabled={isPast}
+                                        className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
+                                            isPast 
+                                                ? 'opacity-50 cursor-not-allowed' 
+                                                : 'hover:opacity-80'
+                                        }`}
+                                        style={{ 
+                                            backgroundColor: isPast ? '#E2D4BA' : '#AF7A6D', 
+                                            color: '#FFFFFF' 
+                                        }}
+                                    >
                                         <Edit className="w-5 h-5" /> Modifier
                                     </button>
                                 </Link>

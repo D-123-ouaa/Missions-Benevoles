@@ -13,11 +13,23 @@ use Illuminate\Support\Str;
 class MissionController extends Controller
 {
     // Aficher toutes les missions avec pagination
-    public function index()
+    public function index(Request $request)
     {   
-        $missions = Mission::with(['images', 'volunteers' => function($q) {
+        $query = Mission::with(['images', 'volunteers' => function($q) {
             $q->wherePivot('status', 'confirmed');
-        }])->orderBy('date', 'asc')->paginate(6);
+        }]);
+
+        // Filtre par date (si le champ n'est pas vide)
+        if ($request->filled('date')) {
+            $query->whereDate('date', $request->date);
+        }
+
+        // Filtre par lieu (si le champ n'est pas vide)
+        if ($request->filled('location')) {
+            $query->where('location', 'like', '%' . $request->location . '%');
+        }
+
+        $missions = $query->orderBy('date', 'asc')->paginate(6);
         return response()->json([
             'data' => $missions->items(),
             'current_page' => $missions->currentPage(),
@@ -76,6 +88,12 @@ class MissionController extends Controller
         $mission = Mission::findOrFail($id);
         Gate::authorize('update', $mission);
 
+        if ($mission->date < now()) {
+            return response()->json([
+                'message' => 'Impossible de modifier une mission déjà passée'
+            ], 403);
+        }
+
         $request->validate([
             'title' => 'sometimes|string|max:255',
             'description' => 'sometimes|string',
@@ -95,6 +113,8 @@ class MissionController extends Controller
     {
         $mission = Mission::findOrFail($id);
         Gate::authorize('delete', $mission);
+
+        $mission->registrations()->delete();
 
         foreach ($mission->images as $image) {
             $image->delete(); 

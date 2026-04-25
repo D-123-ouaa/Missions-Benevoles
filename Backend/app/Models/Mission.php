@@ -23,7 +23,13 @@ class Mission extends Model
         'available_places' => 'integer',
     ];
 
-    // Relation avec les bénévoles (many-to-many via registrations)
+    // Relation directe avec la table registrations
+    public function registrations()
+    {
+        return $this->hasMany(Registration::class, 'mission_id');
+    }
+
+    // Relation many-to-many avec les bénévoles
     public function volunteers()
     {
         return $this->belongsToMany(User::class, 'registrations', 'mission_id', 'user_id')
