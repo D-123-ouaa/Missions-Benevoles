@@ -8,21 +8,38 @@ function Login() {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [needsVerification, setNeedsVerification] = useState(false);
+    const [verificationEmail, setVerificationEmail] = useState('');
+    const [resendMsg, setResendMsg] = useState('');
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        setNeedsVerification(false);
         try {
-            const response = await api.post('/login', { email, password });
+            const response = await api.post('/auth/login', { email, password });
             localStorage.setItem('token', response.data.token);
             localStorage.setItem('user', JSON.stringify(response.data.user));
             navigate('/');
         } catch (err) {
-            setError(err.response?.data?.message || 'Erreur de connexion');
+            if (err.response?.data?.email_verified === false) {
+                setNeedsVerification(true);
+                setVerificationEmail(email);
+            } else {
+                setError(err.response?.data?.message || 'Erreur de connexion');
+            }
         }
     };
 
+    const handleResend = async () => {
+        try {
+            await api.post('/auth/resend-verification', { email: verificationEmail });
+            setResendMsg('Email de vérification renvoyé ! Vérifiez votre boîte mail.');
+        } catch {
+            setResendMsg('Erreur lors de l\'envoi.');
+        }
+    };
     return (
         <div className="min-h-screen flex items-center justify-center bg-background py-30" style={{ backgroundColor: '#CCC7B9' }}>
             <div className="w-full max-w-md">
@@ -92,6 +109,16 @@ function Login() {
                                 </button>
                             </div>
                         </div>
+
+                        {needsVerification && (
+                            <div className="p-4 rounded-lg text-sm" style={{ backgroundColor: '#fff8e1', border: '1px solid #f0c040', color: '#7a5c00' }}>
+                                <p className="font-semibold mb-2">📧 Vérifiez votre email avant de vous connecter.</p>
+                                <button onClick={handleResend} className="underline text-sm" style={{ color: '#653239' }}>
+                                    Renvoyer l'email de vérification
+                                </button>
+                                {resendMsg && <p className="mt-2 text-green-700">{resendMsg}</p>}
+                            </div>
+                        )}
 
                         {error && (
                             <div className="p-3 rounded-lg" style={{ backgroundColor: '#f8959588', color: '#cb0303', border: '1px solid #f6737387' }}>

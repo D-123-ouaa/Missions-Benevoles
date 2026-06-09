@@ -26,21 +26,23 @@ function Register() {
         setError('');
         try {
             const fullName = `${form.prenom} ${form.name}`.trim();
-            const response = await api.post('/register', {
+            await api.post('/auth/register', {
                 name: fullName,
                 email: form.email,
                 password: form.password,
                 password_confirmation: form.password_confirmation,
                 phone: form.phone
             });
-            localStorage.setItem('token', response.data.token);
-            localStorage.setItem('user', JSON.stringify(response.data.user));
-            navigate('/');
+            
+            // Pas de token ici — rediriger vers une page de confirmation
+            navigate('/register-success', { 
+                state: { email: form.email } 
+            });
+
         } catch (err) {
             const errors = err.response?.data?.errors;
             if (errors) {
-                const firstError = Object.values(errors)[0];
-                setError(firstError[0]);
+                setError(Object.values(errors)[0][0]);
             } else {
                 setError(err.response?.data?.message || "Erreur d'inscription");
             }

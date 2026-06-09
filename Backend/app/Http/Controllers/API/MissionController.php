@@ -5,6 +5,9 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Mission;
 use App\Models\Image;
+use App\Mail\MissionCancelledMail;
+use App\Models\Notification;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
@@ -114,6 +117,18 @@ class MissionController extends Controller
         $mission = Mission::findOrFail($id);
         Gate::authorize('delete', $mission);
 
+        $volunteers = $mission->volunteers()->wherePivot('status', 'confirmed')->get();
+
+        foreach ($volunteers as $volunteer) {
+            Mail::to($volunteer->email)->send(new MissionCancelledMail($volunteer, $mission));
+            Notification::create([
+                'user_id' => $volunteer->id,
+                'title' => 'Mission annulée',
+                'message' => "La mission \"{$mission->title}\" du {$mission->date->format('d/m/Y')} a été annulée.",
+                'type' => 'cancellation',
+            ]);
+        }
+
         $mission->registrations()->delete();
 
         foreach ($mission->images as $image) {
@@ -132,8 +147,8 @@ class MissionController extends Controller
         $mission = Mission::findOrFail($id);
         
         $user = auth()->user();
-        if ($user->role !== "admin") {
-            return response()->json(['message' => 'Seuls les administrateurs peuvent faire l\'export des participants'], 403);
+        if ($user->role !== "admin" && $user->role !== "manager") {
+            return response()->json(['message' => 'Seuls les administrateurs et managers peuvent ajouter des images'], 403);
         }
 
         $request->validate([
@@ -159,7 +174,7 @@ class MissionController extends Controller
             return response()->json(['message' => 'Image non trouvée'], 404);
         }
         
-        if (!auth()->user()->isAdmin()) {
+        if (!auth()->user()->isAdmin() && !auth()->user()->isManager()) {
             return response()->json(['message' => 'Non autorisé'], 403);
         }
         

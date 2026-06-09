@@ -7,6 +7,11 @@ use App\Models\Mission;
 use App\Models\Registration;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Barryvdh\DomPDF\Facade\Pdf;
+use App\Mail\RegistrationConfirmedMail;
+use App\Mail\UnregistrationMail;
+use App\Models\Notification;
+use Illuminate\Support\Facades\Mail;
 
 class RegistrationController extends Controller
 {
@@ -20,30 +25,53 @@ class RegistrationController extends Controller
         if ($user->role !== 'volunteer') {
             return response()->json(['message' => 'Seuls les bénévoles peuvent s\'inscrire'], 403);
         }
-        
         if ($mission->date < now()) {
             return response()->json(['message' => 'Cette mission est déjà passée'], 400);
         }
-        
         if ($mission->available_places <= 0) {
             return response()->json(['message' => 'Plus de places disponibles'], 400);
         }
-        
-        $existing = Registration::where('user_id', $user->id)
+        $existingRegistration = Registration::where('user_id', $user->id)
             ->where('mission_id', $mission->id)
-            ->where('status', 'confirmed')
-            ->exists();
-            
-        if ($existing) {
-            return response()->json(['message' => 'Vous êtes déjà inscrit'], 409);
-        }
+            ->first();
         
-        // Créer l'inscription
+        if ($existingRegistration) {
+            if ($existingRegistration->status === 'confirmed') {
+                return response()->json(['message' => 'Vous êtes déjà inscrit'], 409);
+            }
+            if ($existingRegistration->status === 'cancelled') {
+                $existingRegistration->status = 'confirmed';
+                $existingRegistration->registered_at = now();
+                $existingRegistration->save();
+                
+                $mission->decrement('available_places');
+                
+                Mail::to($user->email)->send(new RegistrationConfirmedMail($user, $mission));
+                Notification::create([
+                    'user_id' => $user->id,
+                    'title' => 'Réinscription confirmée',
+                    'message' => "Votre réinscription à \"{$mission->title}\" le {$mission->date->format('d/m/Y')} est confirmée.",
+                    'type' => 'registration',
+                ]);
+                
+                return response()->json([
+                    'message' => 'Réinscription réussie',
+                    'registration' => $existingRegistration
+                ], 200);
+            }
+        }
         $registration = Registration::create([
             'user_id' => $user->id,
             'mission_id' => $missionId,
             'status' => 'confirmed',
             'registered_at' => now(),
+        ]);
+        Mail::to($user->email)->send(new RegistrationConfirmedMail($user, $mission));
+        Notification::create([
+            'user_id' => $user->id,
+            'title' => 'Inscription confirmée',
+            'message' => "Votre inscription à \"{$mission->title}\" le {$mission->date->format('d/m/Y')} est confirmée.",
+            'type' => 'registration',
         ]);
         
         $mission->decrement('available_places');
@@ -72,6 +100,17 @@ class RegistrationController extends Controller
         
         $registration->status = 'cancelled';
         $registration->save();
+
+        // Email
+        Mail::to($user->email)->send(new UnregistrationMail($user, $mission));
+
+        // Notification in-app
+        Notification::create([
+            'user_id' => $user->id,
+            'title' => 'Désistement enregistré',
+            'message' => "Votre désistement de \"{$mission->title}\" a été enregistré.",
+            'type' => 'cancellation',
+        ]);
         
         $mission->increment('available_places');
         
@@ -117,19 +156,19 @@ class RegistrationController extends Controller
         ], 200);
     }
     
-    // Export fichier CSV des participants dans la mission (admin uniquement)
+    // Export fichier CSV des participants dans la mission
     // GET /api/missions/{mission}/export
-    public function export($missionId)
+    public function exportCSV($missionId)
     {
         $mission = Mission::findOrFail($missionId);
         
         $user = auth()->user();
-        if ($user->role !== "admin") {
-            return response()->json(['message' => 'Seuls les administrateurs peuvent faire l\'export des participants'], 403);
+        if ($user->role !== "admin" && $user->role !== 'manager') {
+            return response()->json(['message' => 'Non autorisé'], 403);
         }
         
         $participants = $mission->volunteers()
-            ->wherePivot('status', 'confirmed')
+            ->wherePivot('status', 'confirmed')->withPivot('registered_at')
             ->get(['users.id', 'users.name', 'users.email', 'users.phone']);
         
         // Créer le contenu CSV
@@ -153,6 +192,26 @@ class RegistrationController extends Controller
         
         return response($csvContent, 200)
             ->header('Content-Type', 'text/csv')
-            ->header('Content-Disposition', 'attachment; filename="participants_' . $mission->id . '.csv"');
+             ->header('Content-Disposition', 'attachment; filename="participants_'.$mission->id.'.csv"');
+    }
+
+    // Export fichier PDF des participants dans la mission
+    public function exportPdf($missionId) {
+        $mission = Mission::with('images')->findOrFail($missionId);
+        $user = auth()->user();
+        if ($user->role !== 'admin' && $user->role !== 'manager') {
+            return response()->json(['message' => 'Non autorisé'], 403);
+        }
+        $participants = $mission->volunteers()
+            ->wherePivot('status', 'confirmed')
+            ->withPivot('registered_at')
+            ->get(['users.id', 'users.name', 'users.email', 'users.phone']);
+
+        $pdf = Pdf::loadView('exports.mission-pdf', [
+            'mission' => $mission,
+            'participants' => $participants,
+            'exportDate' => now()->format('d/m/Y H:i'),
+        ]);
+        return $pdf->download('rapport_mission_'.$mission->id.'.pdf');
     }
 }

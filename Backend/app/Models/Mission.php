@@ -90,4 +90,12 @@ class Mission extends Model
             ->wherePivot('status', 'confirmed')
             ->count();
     }
+
+    public function reviews() {
+    return $this->hasMany(Review::class);
+    }
+
+    public function getAverageRatingAttribute() {
+        return round($this->reviews()->avg('rating'), 1);
+    }
 }

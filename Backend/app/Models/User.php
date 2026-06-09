@@ -2,15 +2,18 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use App\Models\Notification;
+use App\Models\Mission;
+use App\Models\Review;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     use HasFactory, Notifiable, HasApiTokens;
     
@@ -50,9 +53,20 @@ class User extends Authenticatable
     }
     
     // Vérifier si l'utilisateur est un admin
-    public function isAdmin(): bool
-    {
+    public function isManager(): bool {
+    return $this->role === 'manager';
+    }
+
+    public function isSuperAdmin(): bool {
         return $this->role === 'admin';
+    }
+
+    public function isAdmin(): bool {
+        return $this->role === 'admin';
+    }
+
+    public function notifications() {
+        return $this->hasMany(Notification::class);
     }
     
     // Vérifier si l'utilisateur est un bénévole
